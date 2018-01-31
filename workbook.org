@@ -1,0 +1,162 @@
+#+TITLE: Benchmarking Notes
+
+* Binaries To Test
+
+#+tblname: system-vs-current-dev
+| Binary                                                                       | title             |
+|------------------------------------------------------------------------------+-------------------|
+| /usr/bin/qemu-aarch64                                                        | system-2.11.1.log |
+| ~/lsrc/qemu/qemu-builddirs/arm-targets.build/aarch64-linux-user/qemu-aarch64 | master.log        |
+| ~/lsrc/qemu/qemu.git/aarch64-linux-user/qemu-aarch64                         | development.log   |
+
+#+tblname: current
+| Binary                                                                       | title           |
+|------------------------------------------------------------------------------+-----------------|
+| ~/lsrc/qemu/qemu.git/aarch64-linux-user/qemu-aarch64                         | development.log |
+
+* Run Benchmark
+:PROPERTIES:
+:header-args: :dir ./nbench :var files=system-vs-current-dev :var tests="FP.DAT"
+:END:
+
+#+name: compare-qemu-binaries
+#+header: :var workbook=(file-name-directory (buffer-file-name))
+#+begin_src python :async
+  import subprocess
+  import os
+
+  runs=[]
+
+  for path,logname in files:
+     cmd="taskset -c 0 %s ./nbench -V -C./%s | tee -a ../%s" % (path, tests, logname)
+     subprocess.call(cmd, shell=True)
+     runs.append(logname)
+
+  return runs
+#+end_src
+
+#+RESULTS: compare-qemu-binaries
+| system-2.11.1.log | master.log | development.log |
+
+#+name: compare-binaries-fp-only
+#+header: :var results=compare-qemu-binaries(tests="FP.DAT")
+#+begin_src emacs-lisp
+results
+#+end_src
+
+* Graph Results
+:PROPERTIES:
+:header-args: :var data=system-vs-current-dev[,1]
+:END:
+
+#+name: graph-results
+#+header: :var output="set term dumb 80" :results output
+#+begin_src sh
+  set -- "$@" "$data"
+  exec ./breakdown.pl --suite=fp --barchart $@ | ./barchart.git/barchart.pl \
+    --extra-gnuplot="$output" \
+    --extra-gnuplot='set title "NBench score; higher is better"' \
+    --extra-gnuplot="set yrange [0:]" --extra="=norotate" | gnuplot
+#+end_src
+
+#+RESULTS: graph-results
+#+begin_example
+
+                         NBench score; higher is better
+
+    5 +--------------------------------------------------------------------+
+      |                     *+-+#  $+-+$      +-+                          |
+  4.5 |-+...................*...#..$...$..*+-++-+$+-+$.+system-2.5       +-|
+      |                     *   #  $   $  *+-+#  $   $      master         |
+    4 |-+...................*...#..$...$..*...#..$...$.development.......+-|
+  3.5 |-+...................*...#..$...$..*...#..$...$..*+-#...$+-+......+-|
+      |                     *   #  $   $  *   #  $   $  *  #   $  $        |
+    3 |-+...................*...#..$...$..*...#..$...$..*..#...$..$......+-|
+      |                     *   #  $   $  *   #  $   $  *  #   $  $        |
+  2.5 |-+......+-+#+-++-+$..*...#..$...$..*...#..$...$..*..#...$..$......+-|
+      |        *  #   $  $  *   #  $   $  *   #  $   $  *  #   $  $        |
+    2 |-+......*..#...$..$..*...#..$...$..*...#..$...$..*..#...$..$......+-|
+      |        *  #   $  $  *   #  $   $  *   #  $   $  *  #   $  $        |
+  1.5 |-+......*..#...$..$..*...#..$...$..*...#..$...$..*..#...$..$......+-|
+    1 |-+......*..#...$..$..*...#..$...$..*...#..$...$..*..#...$..$......+-|
+      |        *  #   $  $  *   #  $   $  *   #  $   $  *  #   $  $        |
+  0.5 |-+......*..#...$..$..*...#..$...$..*...#..$...$..*..#...$..$......+-|
+      |        *  #   $  $  *   #  $   $  *   #  $   $  *  #   $  $        |
+    0 +--------------------------------------------------------------------+
+                 FOURIER     NEURAL NETLU DECOMPOSITION    gmean
+
+#+end_example
+
+#+name: graph-results-as-text
+#+header: :stdin graph-results(output="set term dumb 80") :results output
+#+begin_src sh
+cat
+#+end_src
+
+#+RESULTS: graph-results-as-text
+#+begin_example
+                                                                               
+                         NBench score; higher is better
+
+    5 +--------------------------------------------------------------------+
+      |                     *+-+#  $+-+$      +-+                          |
+  4.5 |-+...................*...#..$...$..*+-++-+$+-+$.+system-2.5       +-|
+      |                     *   #  $   $  *+-+#  $   $      master         |
+    4 |-+...................*...#..$...$..*...#..$...$.development.......+-|
+  3.5 |-+...................*...#..$...$..*...#..$...$..*+-#...$+-+......+-|
+      |                     *   #  $   $  *   #  $   $  *  #   $  $        |
+    3 |-+...................*...#..$...$..*...#..$...$..*..#...$..$......+-|
+      |                     *   #  $   $  *   #  $   $  *  #   $  $        |
+  2.5 |-+......+-+#+-++-+$..*...#..$...$..*...#..$...$..*..#...$..$......+-|
+      |        *  #   $  $  *   #  $   $  *   #  $   $  *  #   $  $        |
+    2 |-+......*..#...$..$..*...#..$...$..*...#..$...$..*..#...$..$......+-|
+      |        *  #   $  $  *   #  $   $  *   #  $   $  *  #   $  $        |
+  1.5 |-+......*..#...$..$..*...#..$...$..*...#..$...$..*..#...$..$......+-|
+    1 |-+......*..#...$..$..*...#..$...$..*...#..$...$..*..#...$..$......+-|
+      |        *  #   $  $  *   #  $   $  *   #  $   $  *  #   $  $        |
+  0.5 |-+......*..#...$..$..*...#..$...$..*...#..$...$..*..#...$..$......+-|
+      |        *  #   $  $  *   #  $   $  *   #  $   $  *  #   $  $        |
+    0 +--------------------------------------------------------------------+
+                 FOURIER     NEURAL NETLU DECOMPOSITION    gmean
+
+#+end_example
+
+** Make and upload PNG
+
+#+name: graph-results-as-png
+#+header: :results output :file results.png
+#+begin_src sh
+  set -- "$@" "$data"
+  exec ./breakdown.pl --suite=fp --barchart $@ | ./barchart.git/barchart.pl \
+    --extra-gnuplot="set term pngcairo size 1200,500" \
+    --extra-gnuplot='set title "NBench score; higher is better"' \
+    --extra-gnuplot="set yrange [0:]" --extra="=norotate" | gnuplot
+#+end_src
+
+#+RESULTS: graph-results-as-png
+[[file:results.png]]
+
+#+name: upload-to-imgur
+#+header: :var output=graph-results-as-png()
+#+begin_src restclient
+:client_id = fd2da649643c743
+
+# Upload images to imgur
+POST https://api.imgur.com/3/image
+Authorization: Client-ID :client_id
+Content-type: image/png
+
+< results.png
+#+end_src
+
+#+name: post-to-imgur
+#+begin_src emacs-lisp :var json-string=upload-to-imgur()
+  (when (string-match
+         (rx "link" (one-or-more (any "\":" whitespace))
+            (group (one-or-more (not (any "\"")))))
+         json-string)
+    (match-string 1 json-string))
+#+end_src
+
+#+RESULTS: post-to-imgur
+: https://i.imgur.com/stYmag9.png
